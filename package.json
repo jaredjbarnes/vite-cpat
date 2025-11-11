@@ -1,0 +1,37 @@
+{
+  "name": "vite-cpat",
+  "version": "0.1.0",
+  "description": "A Vite plugin",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "packageManager": "yarn@4.11.0",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "keywords": [
+    "vite",
+    "vite-plugin"
+  ],
+  "author": "",
+  "license": "MIT",
+  "peerDependencies": {
+    "clarity-pattern-parser": "^11.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "clarity-pattern-parser": "^11.4.0",
+    "typescript": "^5.9.3",
+    "vite": "^5.0.0"
+  }
+}
