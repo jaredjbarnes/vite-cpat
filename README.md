@@ -19,3 +19,14 @@ export default defineConfig({
   ],
 });
 ```
+
+If using Typescript add this to your types to allow for cpat imports.
+```typescript
+declare module '*.cpat' {
+  import type { Pattern } from 'clarity-pattern-parser';
+  const content: Record<string, Pattern>;
+  export default content;
+
+  export function compileWithParams(params: Pattern[]): Record<string, Pattern>;
+}
+```
