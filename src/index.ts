@@ -65,9 +65,9 @@ export { CPAT_FS, resolver };
 `;
 }
 
-export function generateFSBatch(entries: Record<string, string>, fsIndex: number) {
+export function generateFSBatch(entries: Record<string, string>) {
     return `
-import { CPAT_FS, resolver } from 'virtual:cpat-fs${fsIndex - 1 < 0 ? "" : fsIndex - 1}';
+import { CPAT_FS, resolver } from 'virtual:cpat-fs';
 
 ${Object.keys(entries).map(key => `CPAT_FS[${JSON.stringify(key)}] = ${JSON.stringify(entries[key])};`).join('\n')}
 
@@ -159,7 +159,7 @@ export function viteCpat(): Plugin {
             }
 
             if (id === `\0cpat-fs${fsIndex}`) {
-                const generated = generateFSBatch(fsBatch, fsIndex);
+                const generated = generateFSBatch(fsBatch);
                 fsBatch = {};
                 fsIndex++;
 
