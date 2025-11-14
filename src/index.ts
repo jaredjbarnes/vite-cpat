@@ -172,7 +172,7 @@ export function viteCpat(): Plugin {
         async transform(code, id) {
             if (id.endsWith('.cpat')) {
                 const generated = await generateJavaScriptFile(id, code, this, fsIndex);
-                return generated;
+                return { code: generated, map: null, moduleSideEffects: 'no-treeshake' };
             }
 
             return null;
