@@ -108,10 +108,19 @@ function getImportPaths(cpatGrammar: string) {
     return results
 }
 
-export function viteCpat(): Plugin {
+export function viteCpat({debug}: {debug: boolean}): Plugin {
     let root: string;
     let fsBatch: Record<string, string> = {};
     let fsIndex: number = 0;
+
+    function log(header: string,message: string) {
+        if (!debug) return;
+        console.log("************************************************");
+        console.log(header);
+        console.log("------------------------------------------------");
+        console.log(message);
+        console.log("************************************************");
+    }
 
     return {
         name: 'vite-cpat',
@@ -155,11 +164,13 @@ export function viteCpat(): Plugin {
         load(id: string) {
             if (id === "\0cpat-fs") {
                 const generated = generateRootCpatFS();
+                log(`Root FS: ${id}`, generated);
                 return generated;
             }
 
             if (id === `\0cpat-fs${fsIndex}`) {
                 const generated = generateFSBatch(fsBatch);
+                log(`FS Batch: ${id}`, generated);
                 fsBatch = {};
                 fsIndex++;
 
@@ -172,6 +183,7 @@ export function viteCpat(): Plugin {
         async transform(code, id) {
             if (id.endsWith('.cpat')) {
                 const generated = await generateJavaScriptFile(id, code, this, fsIndex);
+                log(`JavaScript File: ${id}`, generated);
                 return { code: generated, map: null, moduleSideEffects: 'no-treeshake' };
             }
 
@@ -184,7 +196,7 @@ export function viteCpat(): Plugin {
             }
         },
 
-
+        
     };
 }
 
