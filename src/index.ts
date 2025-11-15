@@ -3,17 +3,8 @@ import type { Plugin, ResolvedConfig } from 'vite';
 import { grammar, Node } from 'clarity-pattern-parser';
 
 export async function generateJavaScriptFile(absolutePath: string, grammar: string, plugin: any, fsIndex: number) {
-    const importPaths = getImportPaths(grammar);
-    const absolutePaths: string[] = [];
-    for (const path of importPaths) {
-        const resolved = await plugin.resolve(path, absolutePath);
-        if (resolved == null) {
-            throw new Error(`Import ${path} not found`);
-        }
-        absolutePaths.push(resolved.id);
-    }
 
-    const javascriptImports = absolutePaths.map(path => `import "${path}"`).join('\n');
+    const javascriptImports = await getCpatImports(absolutePath, grammar, plugin);
 
     return `
 ${javascriptImports}
@@ -95,25 +86,39 @@ async function normalizeImports(filePath: string, content: string, plugin: any) 
     return results.ast.toString();
 }
 
-const cpatImportRegex = /import .*? from "(.+)"/gi;
-
-function getImportPaths(cpatGrammar: string) {
-    const results = [];
-    let match: RegExpExecArray | null = null;
-
-    while ((match = cpatImportRegex.exec(cpatGrammar)) !== null) {
-        results.push(match[1]);
+async function getCpatImports(absolutePath: string, grammar: string, plugin: any) {
+    const importPaths = getImportPaths(grammar);
+    const absolutePaths: string[] = [];
+    for (const path of importPaths) {
+        const resolved = await plugin.resolve(path, absolutePath);
+        if (resolved == null) {
+            throw new Error(`Import ${path} not found`);
+        }
+        absolutePaths.push(resolved.id);
     }
 
-    return results
+    return absolutePaths.map(path => `import "${path}"`).join('\n');
+
 }
 
-export function viteCpat({debug}: {debug: boolean}): Plugin {
+function getImportPaths(cpatGrammar: string) {
+    const results = grammar.exec(cpatGrammar);
+
+    if (results.ast == null) {
+        return [];
+    }
+
+    const nodes = results.ast.findAll((node) => node.name === "resource");
+    return nodes.map((node) => node.value.slice(1, -1));
+}
+
+export function viteCpat(options?: { debug: boolean }): Plugin {
     let root: string;
     let fsBatch: Record<string, string> = {};
     let fsIndex: number = 0;
+    const debug = options?.debug ?? false;
 
-    function log(header: string,message: string) {
+    function log(header: string, message: string) {
         if (!debug) return;
         console.log("************************************************");
         console.log(header);
@@ -141,7 +146,7 @@ export function viteCpat({debug}: {debug: boolean}): Plugin {
             }
 
             if (id.startsWith('virtual:cpat-fs')) {
-                return "\0"+id.substring(8);
+                return "\0" + id.substring(8);
             }
 
             if (id.endsWith('.cpat')) {
@@ -182,6 +187,8 @@ export function viteCpat({debug}: {debug: boolean}): Plugin {
 
         async transform(code, id) {
             if (id.endsWith('.cpat')) {
+                const imports = await getCpatImports(id, code, this);
+                log(`Imports: ${id}`, JSON.stringify(imports));
                 const generated = await generateJavaScriptFile(id, code, this, fsIndex);
                 log(`JavaScript File: ${id}`, generated);
                 return { code: generated, map: null, moduleSideEffects: 'no-treeshake' };
@@ -196,7 +203,7 @@ export function viteCpat({debug}: {debug: boolean}): Plugin {
             }
         },
 
-        
+
     };
 }
 
