@@ -2,17 +2,19 @@ import fs from 'fs';
 import type { Plugin, ResolvedConfig } from 'vite';
 import { grammar, Node } from 'clarity-pattern-parser';
 
-export async function generateJavaScriptFile(absolutePath: string, grammar: string, plugin: any, fsIndex: number) {
+export async function generateJavaScriptFile(absolutePath: string, grammar: string, plugin: any, cpat: string) {
 
     const javascriptImports = await getCpatImports(absolutePath, grammar, plugin);
 
     return `
 ${javascriptImports}
 import { Grammar } from 'clarity-pattern-parser'
-import { CPAT_FS, resolver } from 'virtual:cpat-fs${fsIndex}'
+import { CPAT_FS, resolver } from 'virtual:cpat-fs'
 
+const fileContent = ${JSON.stringify(cpat)};
 const filePath = ${JSON.stringify(absolutePath)};
-const fileContent = CPAT_FS[filePath];
+
+CPAT_FS[filePath] = fileContent;
 
 const pattern = Grammar.parseString(fileContent, {
     resolveImportSync: resolver,
@@ -33,10 +35,10 @@ export function compileWithParams(params){
 `
 }
 
-export function generateRootCpatFS() {
+export function generateCpatFs() {
     return `
-const CPAT_FS = {};
 const baseUrl = new URL("https://tcn.com/");
+const CPAT_FS = {};
 
 function resolver(toPath, fromPath) {
     const fromUrl = new URL(fromPath, baseUrl);
@@ -56,15 +58,6 @@ export { CPAT_FS, resolver };
 `;
 }
 
-export function generateFSBatch(entries: Record<string, string>, fsIndex: number) {
-    return `
-import { CPAT_FS, resolver } from 'virtual:cpat-fs${fsIndex === 0 ? "" : fsIndex - 1}';
-
-${Object.keys(entries).map(key => `CPAT_FS[${JSON.stringify(key)}] = ${JSON.stringify(entries[key])};`).join('\n')}
-
-export { CPAT_FS, resolver };`;
-
-}
 
 async function normalizeImports(filePath: string, content: string, plugin: any) {
     const results = grammar.exec(content);
@@ -114,8 +107,7 @@ function getImportPaths(cpatGrammar: string) {
 
 export function viteCpat(options?: { debug: boolean }): Plugin {
     let root: string;
-    let fsBatch: Record<string, string> = {};
-    let fsIndex: number = 0;
+    let cpatSources: Record<string, string> = {};
     const debug = options?.debug ?? false;
 
     function log(header: string, message: string) {
@@ -132,7 +124,7 @@ export function viteCpat(options?: { debug: boolean }): Plugin {
         enforce: 'pre',
 
         buildStart() {
-            fsBatch = {};
+            cpatSources = {};
         },
 
         configResolved(config: ResolvedConfig) {
@@ -140,15 +132,6 @@ export function viteCpat(options?: { debug: boolean }): Plugin {
         },
 
         async resolveId(id: string, importer: string | undefined) {
-
-            if (id === "virtual:cpat-fs") {
-                return "\0cpat-fs"
-            }
-
-            if (id.startsWith('virtual:cpat-fs')) {
-                return "\0" + id.substring(8);
-            }
-
             if (id.endsWith('.cpat')) {
                 const resolved = await this.resolve(id, importer);
 
@@ -158,43 +141,40 @@ export function viteCpat(options?: { debug: boolean }): Plugin {
 
                 const content = fs.readFileSync(resolved.id, 'utf-8');
                 const normalizedContent = await normalizeImports(resolved.id, content, this);
-                fsBatch[resolved.id] = normalizedContent;
+                cpatSources[resolved.id] = normalizedContent;
 
                 return resolved.id;
+            }
+
+            if (id.startsWith('virtual:cpat-fs')) {
+                return "\0cpat-fs";
             }
 
             return null
         },
 
         load(id: string) {
-            if (id === "\0cpat-fs") {
-                const generated = generateRootCpatFS();
-                log(`Root FS: ${id}`, generated);
-                return generated;
+            if (id.endsWith('.cpat')) {
+                return cpatSources[id];
             }
 
-            if (id === `\0cpat-fs${fsIndex}`) {
-                const generated = generateFSBatch(fsBatch, fsIndex);
-                log(`FS Batch: ${id}`, generated);
-                fsBatch = {};
-                fsIndex++;
-
-                return generated;
+            if (id.startsWith('\0cpat-fs')) {
+                return generateCpatFs();
             }
 
-            return null;
+            return null
         },
 
         async transform(code, id) {
             if (id.endsWith('.cpat')) {
                 const imports = await getCpatImports(id, code, this);
                 log(`Imports: ${id}`, JSON.stringify(imports));
-                const generated = await generateJavaScriptFile(id, code, this, fsIndex);
+                const generated = await generateJavaScriptFile(id, code, this, cpatSources[id]);
                 log(`JavaScript File: ${id}`, generated);
                 return { code: generated, map: null, moduleSideEffects: 'no-treeshake' };
             }
 
-            if (id.includes('cpat-fs')) {
+            if (id.startsWith('virtual:cpat-fs')) {
                 return {
                     code,
                     map: null,
