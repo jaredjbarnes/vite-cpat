@@ -194,6 +194,14 @@ export function viteCpat(options?: { debug: boolean }): Plugin {
                 return { code: generated, map: null, moduleSideEffects: 'no-treeshake' };
             }
 
+            if (id.includes('cpat-fs')) {
+                return {
+                    code,
+                    map: null,
+                    moduleSideEffects: 'no-treeshake'
+                }
+            }
+
             return null;
         },
 
