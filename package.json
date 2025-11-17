@@ -1,6 +1,6 @@
 {
   "name": "vite-cpat",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "A Vite plugin",
   "type": "module",
   "main": "./dist/index.js",
